@@ -169,6 +169,18 @@ end
 end
 
 @testset "categorize_data surfaces slack variables" begin
+    # `categorize_data` matches slack variables by name against the keys PSI
+    # emits, which are module-stripped (`PSI.encode_keys_as_strings` is applied
+    # when a `PowerData` is built). Pin that encoding contract here: the moment
+    # it changes, the name-based matching in `categorize_data` silently stops
+    # finding slacks.
+    @test PSI.encode_key_as_string(
+        PSI.VariableKey(PSI.SystemBalanceSlackUp, PSY.System),
+    ) == "SystemBalanceSlackUp__System"
+    @test PSI.encode_key_as_string(
+        PSI.VariableKey(PSI.SystemBalanceSlackDown, PSY.System),
+    ) == "SystemBalanceSlackDown__System"
+
     ts = collect(
         Dates.DateTime("2024-01-01T00:00:00"):Dates.Hour(1):Dates.DateTime(
             "2024-01-01T02:00:00",
@@ -187,6 +199,70 @@ end
     @test haskey(result, "Over Generation")
     @test result["Unserved Energy"] === df_up
     @test result["Over Generation"] === df_dn
+end
+
+@testset "slack matching is namespace-independent (issue #46)" begin
+    # Root cause of issue #46: `Base.show(::Type)` is namespace-sensitive. It
+    # prints the bare "SystemBalanceSlackUp" only while `PowerSimulations` is
+    # `using`-ed at top level, and "PowerSimulations.SystemBalanceSlackUp"
+    # otherwise — which never matches the module-stripped keys PSI produces, so
+    # slack categories were dropped without any error. `nameof` is stable in
+    # every namespace, which is why `categorize_data` must use it.
+    for slack in keys(PA.BALANCE_SLACKVARS)
+        # `Base` stands in for a namespace that has no PowerSimulations in scope.
+        qualified = sprint(show, slack; context = :module => Base)
+        @test qualified == string(parentmodule(slack)) * "." * string(nameof(slack))
+    end
+
+    # `setuptests.jl` does `using PowerSimulations`, so an in-process call can
+    # never observe the qualified form — reverting `categorize_data` to
+    # `string(slack)` would leave every other slack test in this file green.
+    # Drive it from a subprocess whose `Main` never sees PowerSimulations: that
+    # is the only assertion here that actually fails on such a revert.
+    script = """
+    using PowerAnalytics, DataFrames, Dates
+    ts = collect(DateTime("2024-01-01T00:00:00"):Hour(1):DateTime("2024-01-01T02:00:00"))
+    data = Dict{Symbol, DataFrame}(
+        :SystemBalanceSlackUp__System => DataFrame(; DateTime = ts, var = [1.0, 2.0, 3.0]),
+        :SystemBalanceSlackDown__System =>
+            DataFrame(; DateTime = ts, var = [0.5, 1.5, 2.5]),
+    )
+    result = PowerAnalytics.categorize_data(data, Dict())
+    print(join(sort(collect(keys(result))), "|"))
+    """
+    out = read(
+        `$(Base.julia_cmd()) --startup-file=no --project=$(Base.active_project()) -e $script`,
+        String,
+    )
+    @test Set(split(out, "|")) == Set(["Over Generation", "Unserved Energy"])
+end
+
+@testset "slack categories surface end-to-end from ED results" begin
+    # `results_ed` is built with `use_slacks = true` and `results_uc` with
+    # `use_slacks = false` (`test/test_data/results_data.jl`), so ED is the
+    # negative/positive pair for the whole read path: PSI variable keys →
+    # `get_generation_data` → `categorize_data`.
+    ed_slack_keys = Set(
+        PSI.encode_key_as_string(k)
+        for
+        k in PA.get_generation_variable_keys(results_ed) if
+        PSI.get_entry_type(k) ∈ keys(PA.BALANCE_SLACKVARS)
+    )
+    @test ed_slack_keys ==
+          Set(["SystemBalanceSlackUp__System", "SystemBalanceSlackDown__System"])
+
+    gen_ed = PA.get_generation_data(results_ed)
+    result_ed = categorize_data(gen_ed.data, PA.make_fuel_dictionary(results_ed.system))
+    @test Set(values(PA.BALANCE_SLACKVARS)) ⊆ Set(keys(result_ed))
+    for slack_name in values(PA.BALANCE_SLACKVARS)
+        @test !isempty(PA.no_datetime(result_ed[slack_name]))
+        @test DataFrames.nrow(result_ed[slack_name]) == length(gen_ed.time)
+    end
+
+    # The UC problem has no slacks, so no slack category may be invented for it.
+    gen_uc = PA.get_generation_data(results_uc)
+    result_uc = categorize_data(gen_uc.data, PA.make_fuel_dictionary(results_uc.system))
+    @test isdisjoint(Set(keys(result_uc)), Set(values(PA.BALANCE_SLACKVARS)))
 end
 
 @testset "categorize_data splits storage into In (-) / Out (+)" begin

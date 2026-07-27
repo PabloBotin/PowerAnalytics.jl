@@ -51,7 +51,6 @@ function get_generation_variable_keys(
     results::IS.Results;
     variable_keys::Vector{T} = PSI.list_variable_keys(results),
 ) where {T <: PSI.OptimizationContainerKey}
-    # TODO: add slacks
     filter_keys = Vector{PSI.OptimizationContainerKey}()
     for k in variable_keys
         if (
@@ -125,7 +124,6 @@ function get_generation_aux_variable_keys(
     results::IS.Results;
     aux_variable_keys::Vector{T} = PSI.list_aux_variable_keys(results),
 ) where {T <: PSI.OptimizationContainerKey}
-    # TODO: add slacks
     filter_keys = Vector{PSI.OptimizationContainerKey}()
     for k in aux_variable_keys
         if PSI.get_component_type(k) <: PSY.Generator &&
@@ -140,7 +138,6 @@ function get_load_aux_variable_keys(
     results::IS.Results;
     aux_variable_keys::Vector{T} = PSI.list_aux_variable_keys(results),
 ) where {T <: PSI.OptimizationContainerKey}
-    # TODO: add slacks
     filter_keys = Vector{PSI.OptimizationContainerKey}()
     for k in aux_variable_keys
         if PSI.get_component_type(k) <: PSY.ElectricLoad &&
