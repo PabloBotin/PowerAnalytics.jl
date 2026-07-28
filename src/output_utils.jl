@@ -90,7 +90,7 @@ end
 get_data_mat(df::DataFrames.AbstractDataFrame) = Matrix(get_data_df(df))
 
 # TODO test allow_missing behavior
-function _extract_common_time(dfs::DataFrames.AbstractDataFrame...;
+function _extract_common_time(dfs::AbstractVector{<:DataFrames.AbstractDataFrame};
     allow_missing = true, ex_fn::Function = get_time_vec)
     time_cols = ex_fn.(dfs)
     allow_missing || !any([any(ismissing.(ex_fn(tc))) for tc in time_cols]) ||
@@ -119,11 +119,18 @@ end
 If the time axes match across all the `DataFrames`, horizontally concatenate them and remove
 the duplicate time axes. If not, throw an error.
 """
-function hcat_timed_dfs(vals::DataFrame...)  # TODO incorporate allow_missing
-    time_col = _extract_common_time(vals...; ex_fn = get_time_df)
+function hcat_timed_dfs(vals::AbstractVector{<:DataFrames.AbstractDataFrame})  # TODO incorporate allow_missing
+    time_col = _extract_common_time(vals; ex_fn = get_time_df)
     broadcasted_vals = [get_data_df(sub) for sub in _broadcast_time.(vals, Ref(time_col))]
-    return hcat(time_col, broadcasted_vals...)
+    # Fold with the mutating `hcat!`. Splatting into `hcat` recurses once per argument, so
+    # the stack depth grows with the number of `DataFrame`s and overflows past roughly a
+    # thousand; folding the non-mutating `hcat` instead recopies the whole accumulated
+    # frame each step, which is quadratic. `DataFrame(time_col)` is the copy `hcat` would
+    # have made of its first argument, so the inputs are still left untouched.
+    return reduce(DataFrames.hcat!, broadcasted_vals; init = DataFrame(time_col))
 end
+
+hcat_timed_dfs(vals::DataFrame...) = hcat_timed_dfs(collect(vals))
 
 # Sometimes, to construct new column names, we need to construct strings that don't appear
 # as/in any other column names

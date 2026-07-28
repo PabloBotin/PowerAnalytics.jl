@@ -376,7 +376,7 @@ function _compute_one(metric::ComponentTimedMetric, results::IS.Results,
             result = DataFrame(DATETIME_COL => time_col, get_name(selector) => data_col)
         end
     else
-        time_col = _extract_common_time(vals...)
+        time_col = _extract_common_time(vals)
         data_vecs = [get_data_vec(sub) for sub in _broadcast_time.(vals, Ref(time_col))]
         agg_metas = get_agg_meta.(vals)
         is_agg_meta = !all(isnothing.(agg_metas))
@@ -413,7 +413,7 @@ function compute(metric::ComponentTimedMetric, results::IS.Results,
     selector::ComponentSelector; kwargs...)
     subents = get_groups(selector, results)
     subcomputations = [_compute_one(metric, results, sub; kwargs...) for sub in subents]
-    return hcat_timed_dfs(subcomputations...)
+    return hcat_timed_dfs(subcomputations)
 end
 
 # COMPUTE_ALL()
@@ -499,7 +499,7 @@ compute_all(results::IS.Results,
     selectors::Union{Nothing, Component, ComponentSelector, Vector} = nothing,
     col_names::Union{Nothing, Vector{<:Union{Nothing, AbstractString}}} = nothing;
     kwargs...,
-) = hcat_timed_dfs(_common_compute_all(results, metrics, selectors, col_names; kwargs)...)
+) = hcat_timed_dfs(_common_compute_all(results, metrics, selectors, col_names; kwargs))
 
 """
 Methods of [`compute_all`](@ref) for [`TimelessMetric`](@ref)s. For each `(metric, selector,
