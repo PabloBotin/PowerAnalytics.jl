@@ -83,6 +83,8 @@ import
     ..mean,
     ..read_component_result,
     ..rebuild_selector,
+    ..make_selector,
+    ..NoResultError,
     ..DataFrame,
     ..DATETIME_COL,
     ...Selectors.all_loads,  # number of dots obtained by trial and error
@@ -105,6 +107,7 @@ export calc_active_power,
     calc_startup_cost,
     calc_shutdown_cost,
     calc_total_cost,
+    calc_system_cost,
     calc_discharge_cycles,
     calc_system_slack_up,
     calc_is_slack_up,
@@ -304,6 +307,39 @@ _has_startup_shutdown_costs(component::PSY.Component) =
 
 "Calculate the production cost of the specified `ComponentSelector`, which includes the startup and shutdown costs if they are defined"
 const calc_total_cost = calc_production_cost
+
+"""
+Calculate the operational cost of the whole system: [`calc_production_cost`](@ref) summed
+over every component type in the results that has a `ProductionCostExpression`.
+
+Types modeled without one contribute no term to the optimization's objective — a
+`HydroDispatch` under a fixed-injection formulation is a time series parameter, not a
+decision — so leaving them out is exact rather than approximate. That is also why
+`calc_total_cost(make_selector(Generator; groupby = :all), results)` fails: the selector
+spans types that have no cost expression to read.
+
+This is not [`calc_sum_objective_value`](@ref), which is the value the solver minimized and
+so also carries any slack and violation penalties. The two agree only when a simulation
+incurs none.
+"""
+const calc_system_cost = SystemTimedMetric(;
+    name = "SystemCost",
+    eval_fn = (res::IS.Results; kwargs...) -> let
+        costed = unique(
+            PSI.get_component_type(key) for
+            key in PSI.list_expression_keys(res)
+            if PSI.get_entry_type(key) == PSI.ProductionCostExpression
+        )
+        isempty(costed) && throw(
+            NoResultError("The results contain no ProductionCostExpression to sum"),
+        )
+        # Name the selector, or the data column would be a list of whichever types the
+        # system happens to contain.
+        selector = make_selector(make_selector.(costed)...; name = "SystemCost")
+        compute(calc_production_cost, res,
+            rebuild_selector(selector; groupby = :all); kwargs...)
+    end,
+)
 
 "Calculate the number of discharge cycles a storage device has gone through in the time period"
 const calc_discharge_cycles = ComponentTimedMetric(;
