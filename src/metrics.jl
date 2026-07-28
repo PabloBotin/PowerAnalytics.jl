@@ -539,7 +539,7 @@ compute_all(results::IS.Results, metrics::Vector{<:TimelessMetric},
     selectors::Union{Nothing, Component, ComponentSelector, Vector} = nothing,
     col_names::Union{Nothing, Vector{<:Union{Nothing, AbstractString}}} = nothing;
     kwargs...,
-) = hcat(_common_compute_all(results, metrics, selectors, col_names; kwargs)...)
+) = _hcat_dfs(_common_compute_all(results, metrics, selectors, col_names; kwargs))
 
 const ComputationTuple =
     Tuple{<:T, Any, Any} where {T <: Union{TimedMetric, TimelessMetric}}

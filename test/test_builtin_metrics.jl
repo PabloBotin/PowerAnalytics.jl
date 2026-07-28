@@ -181,4 +181,14 @@ end
 
     # The exported vararg method must stay equivalent to the vector method it forwards to.
     @test isequal(hcat_timed_dfs(many[1:5]), hcat_timed_dfs(many[1:5]...))
+
+    # `compute_all` for timeless metrics concatenates the same way and overflowed at the
+    # same depth, so it has to be folded too.
+    timeless = compute_all(results_uc, fill(calc_sum_objective_value, n), nothing,
+        ["m$i" for i in 1:n])
+    # Column order, not just count: the fold must stay left-to-right.
+    @test names(timeless) == ["m$i" for i in 1:n]
+
+    # No metrics is an empty frame, not the bare `Matrix` the old splat returned.
+    @test compute_all(results_uc, TimelessMetric[]) == DataFrames.DataFrame()
 end

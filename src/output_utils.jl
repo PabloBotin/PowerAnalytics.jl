@@ -122,15 +122,23 @@ the duplicate time axes. If not, throw an error.
 function hcat_timed_dfs(vals::AbstractVector{<:DataFrames.AbstractDataFrame})  # TODO incorporate allow_missing
     time_col = _extract_common_time(vals; ex_fn = get_time_df)
     broadcasted_vals = [get_data_df(sub) for sub in _broadcast_time.(vals, Ref(time_col))]
-    # Fold with the mutating `hcat!`. Splatting into `hcat` recurses once per argument, so
-    # the stack depth grows with the number of `DataFrame`s and overflows past roughly a
-    # thousand; folding the non-mutating `hcat` instead recopies the whole accumulated
-    # frame each step, which is quadratic. `DataFrame(time_col)` is the copy `hcat` would
-    # have made of its first argument, so the inputs are still left untouched.
-    return reduce(DataFrames.hcat!, broadcasted_vals; init = DataFrame(time_col))
+    return _hcat_dfs(vcat([time_col], broadcasted_vals))
 end
 
 hcat_timed_dfs(vals::DataFrame...) = hcat_timed_dfs(collect(vals))
+
+# Horizontally concatenate by folding the mutating `DataFrames.hcat!` (unexported, but the
+# only non-copying option). Splatting into `hcat` instead recurses once per argument, so the
+# stack depth grows with the number of `DataFrame`s and overflows past roughly a thousand;
+# folding the non-mutating `hcat` recopies the whole accumulated frame each step, which is
+# quadratic. `foldl` rather than `reduce` because `reduce` may reassociate, and with a
+# mutating operator that would write into one of the caller's `DataFrame`s. Seeding from a
+# copy of the first frame is what leaves the inputs untouched — and what preserves the
+# table-level metadata that seeding from an empty `DataFrame` would drop.
+function _hcat_dfs(vals::AbstractVector{<:DataFrames.AbstractDataFrame})
+    isempty(vals) && return DataFrame()
+    return foldl(DataFrames.hcat!, vals[2:end]; init = DataFrame(first(vals)))
+end
 
 # Sometimes, to construct new column names, we need to construct strings that don't appear
 # as/in any other column names
