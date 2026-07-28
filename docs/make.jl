@@ -28,7 +28,9 @@ pages = OrderedDict(
         "Simulation Scenarios Analysis" => "tutorials/generated_PA_workflow_tutorial.md",
     ],
     # TODO flesh out the how-tos, explanation
-    # "How to..." => Any[#="stub" => "how_to_guides/stub.md"=#],
+    "How to..." => Any[
+        "Customize the Generator Mapping" => "how_to_guides/generator_mapping.md",
+    ],
     # "Explanation" => Any[#="stub" => "explanation/stub.md"=#],
     "Reference" => Any[
         "Public API" => "reference/public.md",
