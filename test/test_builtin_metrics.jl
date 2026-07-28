@@ -123,6 +123,10 @@ function test_metric(::Val{:calc_sum_solve_time})
     @test calc_sum_solve_time(results_uc) isa ResultType
 end
 
+function test_metric(::Val{:calc_system_cost})
+    @test calc_system_cost(results_uc) isa ResultType
+end
+
 function test_metric(::Val{:calc_system_load_forecast})
     @test calc_system_load_forecast(results_uc) isa ResultType
 end
@@ -137,6 +141,38 @@ end
 
 function test_metric(::Val{:calc_total_cost})
     @test calc_total_cost(make_selector(ThermalStandard), results_uc) isa ResultType
+end
+
+# Issue #32. `calc_total_cost(make_selector(Generator; groupby = :all), res)` — the
+# one-liner the issue proposes — fails, because the selector spans types with no
+# `ProductionCostExpression` to read (`HydroDispatch` here, modeled as a fixed injection
+# rather than a decision). `calc_system_cost` sums only the types that have one.
+@testset "Issue #32 — system cost" begin
+    costed = unique(
+        PSI.get_component_type(key) for key in PSI.list_expression_keys(results_uc)
+        if PSI.get_entry_type(key) == PSI.ProductionCostExpression
+    )
+    @test PSY.HydroDispatch ∉ costed  # else the premise below is stale
+    @test_throws IS.InvalidValue calc_total_cost(
+        make_selector(Generator; groupby = :all), results_uc)
+
+    system_cost = calc_system_cost(results_uc)
+    # One stable column, whatever mix of types the system happens to contain.
+    @test get_data_cols(system_cost) == ["SystemCost"]
+
+    # Summing the per-type costs by hand must give the same answer.
+    by_type = sum(
+        sum(get_data_vec(calc_total_cost(make_selector(T; groupby = :all), results_uc)))
+        for T in costed
+    )
+    @test sum(get_data_vec(system_cost)) ≈ by_type
+
+    # It is not the objective value. Those agree only absent penalties: UC has no slacks,
+    # ED does, and there the objective is dominated by unserved energy.
+    @test sum(get_data_vec(system_cost)) ≈
+          only(get_data_vec(calc_sum_objective_value(results_uc))) rtol = 1e-6
+    @test sum(get_data_vec(calc_system_cost(results_ed))) <
+          only(get_data_vec(calc_sum_objective_value(results_ed)))
 end
 
 all_metric_names = filter(x -> getproperty(PowerAnalytics.Metrics, x) isa Metric,
