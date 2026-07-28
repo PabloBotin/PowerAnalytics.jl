@@ -93,6 +93,7 @@ export calc_active_power,
     calc_active_power_out,
     calc_stored_energy,
     calc_load_from_storage,
+    calc_net_active_power,
     calc_active_power_forecast,
     calc_load_forecast,
     calc_system_load_forecast,
@@ -114,7 +115,12 @@ export calc_active_power,
 
 # NOTE ActivePowerVariable is in units of megawatts per simulation time period, so it's
 # actually energy and it makes sense to sum it up.
-"Calculate the active power of the specified `ComponentSelector`"
+"""
+Calculate the active power of the specified `ComponentSelector`, from its
+`ActivePowerVariable`. Storage devices are modeled with separate charge and discharge
+variables and have no `ActivePowerVariable`; use [`calc_net_active_power`](@ref) for those,
+or [`calc_active_power_in`](@ref)/[`calc_active_power_out`](@ref) for one direction alone.
+"""
 const calc_active_power = make_component_metric_from_entry(
     "ActivePower",
     PSI.ActivePowerVariable,
@@ -149,6 +155,16 @@ const calc_load_from_storage = compose_metrics(
     "LoadFromStorage",
     (-),
     calc_active_power_in, calc_active_power_out)
+
+"""
+Calculate the `ActivePowerOut` minus the `ActivePowerIn` of the specified (storage)
+`ComponentSelector`: the storage counterpart of [`calc_active_power`](@ref), signed so that
+discharging is positive.
+"""
+const calc_net_active_power = compose_metrics(
+    "NetActivePower",
+    (-),
+    calc_active_power_out, calc_active_power_in)
 
 "Fetch the forecast active power of the specified `ComponentSelector`"
 const calc_active_power_forecast = make_component_metric_from_entry(
@@ -295,14 +311,12 @@ const calc_shutdown_cost = ComponentTimedMetric(;
     ),
 )
 
-_has_startup_shutdown_costs(::PSY.OperationalCost) = false
-_has_startup_shutdown_costs(::PSY.ThermalGenerationCost) = true
-_has_startup_shutdown_costs(::PSY.StorageCost) = true
-_has_startup_shutdown_costs(::PSY.MarketBidCost) = true
-_has_startup_shutdown_costs(component::PSY.Component) =
-    _has_startup_shutdown_costs(PSY.get_operation_cost(component))
-
-"Calculate the production cost of the specified `ComponentSelector`, which includes the startup and shutdown costs if they are defined"
+"""
+Calculate the total cost of the specified `ComponentSelector`. PowerSimulations folds the
+constituent cost expressions — fuel, startup, shutdown, fixed and VOM — into
+`ProductionCostExpression`, so this is an alias for [`calc_production_cost`](@ref); adding
+[`calc_startup_cost`](@ref) or [`calc_shutdown_cost`](@ref) on top would double-count.
+"""
 const calc_total_cost = calc_production_cost
 
 "Calculate the number of discharge cycles a storage device has gone through in the time period"

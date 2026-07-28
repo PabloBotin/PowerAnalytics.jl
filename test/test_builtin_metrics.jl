@@ -89,6 +89,11 @@ function test_metric(::Val{:calc_load_from_storage})
           ResultType
 end
 
+function test_metric(::Val{:calc_net_active_power})
+    @test calc_net_active_power(make_selector(EnergyReservoirStorage), results_uc) isa
+          ResultType
+end
+
 function test_metric(::Val{:calc_net_load_forecast})
     @test calc_load_from_storage(make_selector(EnergyReservoirStorage), results_uc) isa
           ResultType
@@ -137,6 +142,52 @@ end
 
 function test_metric(::Val{:calc_total_cost})
     @test calc_total_cost(make_selector(ThermalStandard), results_uc) isa ResultType
+end
+
+# Issue #52. Storage is modeled with separate charge/discharge variables, so it has no
+# `ActivePowerVariable` and `calc_active_power` cannot serve it. The metrics that do apply
+# were previously covered only by `isa ResultType` smoke tests, which would not have noticed
+# a sign flip or an empty result.
+@testset "Issue #52 — storage power and energy metrics" begin
+    storage = make_selector(EnergyReservoirStorage)
+
+    # The call from the issue. Storage has no ActivePowerVariable, by design.
+    @test_throws IS.InvalidValue calc_active_power(storage, results_uc)
+
+    charge = get_data_vec(calc_active_power_in(storage, results_uc))
+    discharge = get_data_vec(calc_active_power_out(storage, results_uc))
+    stored = get_data_vec(calc_stored_energy(storage, results_uc))
+
+    # Charging and discharging are non-negative magnitudes, and the battery does both at
+    # some point in this simulation — otherwise the sign assertions below prove nothing.
+    @test all(>=(0), charge) && any(>(0), charge)
+    @test all(>=(0), discharge) && any(>(0), discharge)
+    @test all(>=(0), stored)
+
+    # The two storage views are exact negations of each other: net injection counts
+    # discharging as positive, load-from-storage counts charging as positive.
+    net = get_data_vec(calc_net_active_power(storage, results_uc))
+    load = get_data_vec(calc_load_from_storage(storage, results_uc))
+    @test net ≈ discharge .- charge
+    @test net ≈ -load
+end
+
+# Issue #32 reported `calc_total_cost` returning negative costs for `RenewableDispatch`
+# despite positive `RenewableGenerationCost` curves. That was PowerSimulations applying
+# `OBJECTIVE_FUNCTION_NEGATIVE` to renewable dispatch and reporting the same signed term as
+# the production cost; PSI 0.36.3+ flipped it to positive and moved the dispatch incentive
+# into the curtailment path, which is deliberately not folded into `ProductionCostExpression`.
+# Pin the sign so a regression upstream is caught here rather than in a user's report.
+@testset "Issue #32 — reported costs are non-negative" begin
+    @testset for res in (results_uc, results_ed)
+        @testset for sel in
+                     (make_selector(RenewableDispatch), make_selector(ThermalStandard))
+            costs = get_data_mat(calc_total_cost(sel, res))
+            # Units in the OFF state leave floating-point dust either side of zero.
+            @test all(>=(-1e-8), costs)
+            @test any(>(0), costs)
+        end
+    end
 end
 
 all_metric_names = filter(x -> getproperty(PowerAnalytics.Metrics, x) isa Metric,
