@@ -6,6 +6,8 @@ PV:
   - {gentype: Any, primemover: PVe, fuel: null}
 Wind:
   - {gentype: Any, primemover: WT, fuel: null}
+  # Offshore wind; without this it falls through to the unmapped "Other" bucket.
+  - {gentype: Any, primemover: WS, fuel: null}
 Petroleum:
   - {gentype: Any, primemover: null, fuel: DISTILLATE_FUEL_OIL}
   - {gentype: Any, primemover: null, fuel: RESIDUAL_FUEL_OIL}
@@ -18,6 +20,10 @@ Petroleum:
 Storage:
   - {gentype: Any, primemover: BA, fuel: null}
   - {gentype: Any, primemover: PS, fuel: null}
+  # Fuel-less storage prime movers: compressed air, other storage, flywheel.
+  - {gentype: Any, primemover: CE, fuel: null}
+  - {gentype: Any, primemover: ES, fuel: null}
+  - {gentype: Any, primemover: FW, fuel: null}
 NG-CT:
   - {gentype: Any, primemover: GT, fuel: NATURAL_GAS}
 NG-CC:
