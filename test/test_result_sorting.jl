@@ -364,6 +364,79 @@ end
     ) == "NG-CC"
 end
 
+@testset "prime-mover rules cover the fuel-less PrimeMovers (drift guard)" begin
+    # Counterpart to the ThermalFuels guard above. Components that carry no fuel
+    # (renewables, storage) can only be categorized by prime mover, so a missing
+    # rule silently buckets them into "Other" — offshore wind (WS) not counting
+    # as wind quietly corrupts capacity-mix reporting. Pinning the whole enum
+    # makes a new PSY.PrimeMovers member, or a dropped rule, fail loudly here.
+    mapping = PA.get_generator_mapping()
+
+    # The prime movers with no fuel-less rule emit the by-design @error; capture
+    # the whole sweep with `@test_logs` so it does not leak into the suite-wide
+    # "no Error log events" guard in runtests.jl.
+    categories =
+        @test_logs (:error, r"No mapping defined") match_mode = :any Dict(
+            pm => PA.get_generator_category(
+                PSY.RenewableDispatch,
+                nothing,
+                pm,
+                nothing,
+                mapping,
+            ) for pm in instances(PSY.PrimeMovers)
+        )
+
+    @test Dict(pm => cat for (pm, cat) in categories if !isnothing(cat)) == Dict(
+        PSY.PrimeMovers.WT => "Wind",
+        PSY.PrimeMovers.WS => "Wind",  # offshore wind
+        PSY.PrimeMovers.PVe => "PV",
+        PSY.PrimeMovers.CP => "CSP",
+        PSY.PrimeMovers.HY => "Hydropower",
+        PSY.PrimeMovers.BA => "Storage",
+        PSY.PrimeMovers.PS => "Storage",
+        PSY.PrimeMovers.CE => "Storage",  # compressed air
+        PSY.PrimeMovers.ES => "Storage",  # other storage
+        PSY.PrimeMovers.FW => "Storage",  # flywheel
+    )
+
+    # The remaining prime movers are deliberately unmapped when no fuel is given:
+    # they are thermal (categorized by fuel) or have no unambiguous category.
+    # There is no blanket catch-all rule, so the unmapped @error stays meaningful.
+    @test Set(pm for (pm, cat) in categories if isnothing(cat)) == Set([
+        PSY.PrimeMovers.BT,
+        PSY.PrimeMovers.CA,
+        PSY.PrimeMovers.CC,
+        PSY.PrimeMovers.CS,
+        PSY.PrimeMovers.CT,
+        PSY.PrimeMovers.FC,
+        PSY.PrimeMovers.GT,
+        PSY.PrimeMovers.HA,
+        PSY.PrimeMovers.HB,
+        PSY.PrimeMovers.HK,
+        PSY.PrimeMovers.IC,
+        PSY.PrimeMovers.OT,
+        PSY.PrimeMovers.ST,
+    ])
+
+    # Storage components go through the same fuel-less path in
+    # `make_fuel_dictionary`, so verify them against a real storage type too.
+    for pm in (
+        PSY.PrimeMovers.BA,
+        PSY.PrimeMovers.PS,
+        PSY.PrimeMovers.CE,
+        PSY.PrimeMovers.ES,
+        PSY.PrimeMovers.FW,
+    )
+        @test PA.get_generator_category(
+            PSY.EnergyReservoirStorage,
+            nothing,
+            pm,
+            nothing,
+            mapping,
+        ) == "Storage"
+    end
+end
+
 @testset "Test HydroGen subtypes map to Hydropower" begin
     mapping = PA.get_generator_mapping()
     # HydroPumpTurbine advertises primemover=PS; without the HydroGen rule it
