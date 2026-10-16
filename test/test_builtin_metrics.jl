@@ -148,16 +148,47 @@ all_metric_names = filter(x -> getproperty(PowerAnalytics.Metrics, x) isa Metric
 end
 
 # Regression test for https://github.com/Sienna-Platform/PowerAnalytics.jl/issues/54.
-# Computing a `ComponentTimedMetric` over a type-based `ComponentSelector` (the original
-# reproducer was `calc_active_power(make_selector(ThermalStandard), results_uc)`) was
-# reported to hit `StackOverflowError`. The bug is not reproducible on current `main`
-# (the `IS.ComponentSelector` contract guarantees `get_components` returns components, not
-# selectors, so `_compute_one` cannot recurse via dispatch). This test pins the reproducer
-# down explicitly so any future regression of either the IS contract or PowerAnalytics'
-# dispatch chain is caught immediately.
+# `calc_active_power(make_selector(ThermalStandard), results_uc)` was reported to hit
+# `StackOverflowError`. The cause is not dispatch recursion: `hcat_timed_dfs` splatted one
+# `DataFrame` per group into `hcat`, which forwards to a `DataFrames.hcat!` that recurses
+# once per argument, so the stack depth grew with the group count. `make_selector` defaults
+# to `groupby = :each`, one group per component, and the overflow starts somewhere above a
+# thousand. The test system has five components, which is why the reproducer alone never
+# caught it — the group-count case below is the part that fails on a revert.
 @testset "Regression: Issue #54 — calc_active_power with ComponentSelector dispatch" begin
     result = calc_active_power(make_selector(ThermalStandard), results_uc)
     @test result isa ResultType
     @test DATETIME_COL in names(result)
     @test length(get_data_cols(result)) >= 1
+
+    # The overflow threshold is stack-size dependent: the splatting version handled 900
+    # frames but overflowed at 1000 with an 8 MiB stack, the default on all three CI
+    # runners, and handled 8000 with a 64 MiB stack. 2000 catches a regression on CI as
+    # configured, but passes vacuously wherever `ulimit -s` has been raised.
+    n = 2000
+    ts = collect(
+        Dates.DateTime("2020-01-01T00:00:00"):Dates.Hour(1):Dates.DateTime(
+            "2020-01-01T23:00:00",
+        ),
+    )
+    many = [
+        DataFrames.DataFrame(DATETIME_COL => ts, "c$i" => fill(Float64(i), length(ts)))
+        for i in 1:n
+    ]
+    wide = hcat_timed_dfs(many)
+    @test size(wide) == (length(ts), n + 1)
+    @test Set(get_data_cols(wide)) == Set("c$i" for i in 1:n)
+
+    # The exported vararg method must stay equivalent to the vector method it forwards to.
+    @test isequal(hcat_timed_dfs(many[1:5]), hcat_timed_dfs(many[1:5]...))
+
+    # `compute_all` for timeless metrics concatenates the same way and overflowed at the
+    # same depth, so it has to be folded too.
+    timeless = compute_all(results_uc, fill(calc_sum_objective_value, n), nothing,
+        ["m$i" for i in 1:n])
+    # Column order, not just count: the fold must stay left-to-right.
+    @test names(timeless) == ["m$i" for i in 1:n]
+
+    # No metrics is an empty frame, not the bare `Matrix` the old splat returned.
+    @test compute_all(results_uc, TimelessMetric[]) == DataFrames.DataFrame()
 end
