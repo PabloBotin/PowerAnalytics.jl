@@ -58,7 +58,7 @@ function _attribute_matches(getter::Function, expected, comp::Component)
 end
 _attribute_matches(::Function, ::Nothing, ::Component) = true
 
-function rule_matches(rule::FuelCategoryRule, comp::Component)
+function _rule_matches(rule::FuelCategoryRule, comp::Component)
     return typeof(comp) <: rule.gen_type &&
            _attribute_matches(PSY.get_prime_mover_type, rule.prime_mover, comp) &&
            _attribute_matches(PSY.get_fuel, rule.fuel, comp)
@@ -81,7 +81,7 @@ end
 # Specificity of `rule` for a component it matches, smaller is more specific: the closest
 # component supertype first, then a specific prime mover over any prime mover, then a
 # specific fuel over any fuel.
-function rule_rank(rule::FuelCategoryRule, comp::Component)
+function _rule_rank(rule::FuelCategoryRule, comp::Component)
     return (
         _type_distance(typeof(comp), rule.gen_type),
         isnothing(rule.prime_mover),
@@ -93,11 +93,11 @@ end
 # belongs to exactly one category even when the fallback rules of several categories match
 # it (e.g. a natural gas combined cycle matches both a prime mover rule and a fuel-only
 # rule).
-function is_best_rule(rule::FuelCategoryRule, rules, comp::Component)
-    rule_matches(rule, comp) || return false
-    rank = rule_rank(rule, comp)
+function _is_best_rule(rule::FuelCategoryRule, rules, comp::Component)
+    _rule_matches(rule, comp) || return false
+    rank = _rule_rank(rule, comp)
     for other in rules
-        (other !== rule && rule_matches(other, comp) && rule_rank(other, comp) < rank) &&
+        (other !== rule && _rule_matches(other, comp) && _rule_rank(other, comp) < rank) &&
             return false
     end
     return true
@@ -119,7 +119,7 @@ end
 # `competing_rules` are all the rules of the mapping file; a component is only selected by
 # the most specific rule that matches it.
 function _make_fuel_rule_selector(rule::FuelCategoryRule, competing_rules)
-    filter_closure(comp::Component) = is_best_rule(rule, competing_rules, comp)
+    filter_closure(comp::Component) = _is_best_rule(rule, competing_rules, comp)
     # The name is guaranteed to never collide with fully-qualified component names
     return make_selector(filter_closure, rule.gen_type;
         name = _fuel_rule_selector_name(rule))
