@@ -279,13 +279,24 @@ function add_fixed_parameters!(
     end
 end
 
+# Order of precedence of aux variables: by position in `SUPPORTED_BRANCH_AUX_VARIABLES`, then
+# by encoded key
+function _aux_key_rank(key::PSI.OptimizationContainerKey)
+    rank = findfirst(==(PSI.get_entry_type(key)), SUPPORTED_BRANCH_AUX_VARIABLES)
+    return (
+        something(rank, length(SUPPORTED_BRANCH_AUX_VARIABLES) + 1),
+        PSI.encode_key_as_string(key),
+    )
+end
+
 function add_aux_variables!(
     variables::Dict{V, DataFrames.DataFrame},
     aux_variables::Dict{A, DataFrames.DataFrame},
 ) where {V <: PSI.OptimizationContainerKey, A <: PSI.OptimizationContainerKey}
-    # fixed output should be added to plots when there exists a parameter of the form
-    # :P__max_active_power__* but there is no corresponding :P__* variable
-    for (param_key, param) in aux_variables
+    # Add an aux variable only for a component type that has no entry in `variables`; per
+    # component type, the first aux variable in `_aux_key_rank` order is kept
+    for param_key in sort!(collect(keys(aux_variables)); by = _aux_key_rank)
+        param = aux_variables[param_key]
         PSI.get_component_type(param_key) ∈ PSI.get_component_type.(keys(variables)) &&
             continue
         if !haskey(variables, param_key)
