@@ -208,7 +208,9 @@ const calc_active_power_forecast = make_component_metric_from_entry(
 """
 Forecast active power input of the specified `ComponentSelector` from
 `PowerSimulations.ActivePowerInTimeSeriesParameter`, e.g. a `Source` whose input is fixed
-by a time series. Follows the sign of the stored parameter.
+by a time series. The values are the time series times the `Source`'s
+`active_power_limits.min` under `PowerSimulations.FixedOutput` and times
+`active_power_limits.max` under other formulations.
 """
 const calc_active_power_in_forecast = make_component_metric_from_entry(
     "ActivePowerInForecast",
@@ -518,8 +520,11 @@ reserve results for `service`, it throws a
 # Examples
 
 ```julia
-reg = get_component(VariableReserve{ReserveUp}, get_system(results), "REG1")
-make_calc_reserve_provision(reg)(make_selector(ThermalStandard, "Alta"), results)
+sys = get_system(results)
+reg = get_component(VariableReserve{ReserveUp}, sys, "REG1")
+contributing = make_selector(in(Set(get_contributing_devices(sys, reg))), ThermalStandard;
+    groupby = :all)
+make_calc_reserve_provision(reg)(contributing, results)
 ```
 """
 make_calc_reserve_provision(service::PSY.Service) = ComponentTimedMetric(;

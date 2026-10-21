@@ -64,23 +64,15 @@ end
     ]
     for (metric, args) in cases
         for initial_time in (t0 - step, t_end + step, t0 + Minute(30))
-            err = try
-                compute(metric, args...; initial_time = initial_time)
-            catch e
-                e
-            end
-            @test err isa ArgumentError
-            @test occursin("initial_time $initial_time is not one of", err.msg)
-            @test occursin("($t0 to $t_end)", err.msg)
+            @test_throws ArgumentError(
+                "initial_time $initial_time is not one of the results timestamps " *
+                "($t0 to $t_end)",
+            ) compute(metric, args...; initial_time = initial_time)
         end
-        err = try
-            compute(metric, args...; initial_time = t_end - step, horizon = 3)
-        catch e
-            e
-        end
-        @test err isa ArgumentError
-        @test occursin("a horizon of 3 steps from $(t_end - step)", err.msg)
-        @test occursin("past the end of the results ($t_end)", err.msg)
+        @test_throws ArgumentError(
+            "a horizon of 3 steps from $(t_end - step) runs past the end of the results " *
+            "($t_end)",
+        ) compute(metric, args...; initial_time = t_end - step, horizon = 3)
         @test_throws ArgumentError compute(metric, args...; horizon = 0)
         @test_throws ArgumentError compute(metric, args...; horizon = Hour(0))
         @test_throws ArgumentError compute(

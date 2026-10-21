@@ -79,3 +79,13 @@ end
     write(within, "Coal:\n" * rule * rule)
     @test_throws ArgumentError parse_generator_mapping_file(within)
 end
+
+@testset "Generator-mapping rules that coincide under root_type are rejected" begin
+    file = joinpath(mktempdir(), "any_and_generator.yaml")
+    write(
+        file,
+        "CoalAny:\n  - {gentype: Any, fuel: COAL}\n" *
+        "CoalGen:\n  - {gentype: Generator, fuel: COAL}\n",
+    )
+    @test_throws ArgumentError parse_generator_mapping_file(file; root_type = PSY.Generator)
+end

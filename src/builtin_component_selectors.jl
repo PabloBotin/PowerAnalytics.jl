@@ -69,8 +69,8 @@ end
 function _type_distance(@nospecialize(t::Type), @nospecialize(target::Type))
     dist = 0
     while t !== target
-        # `target` contains `t` without being in its supertype chain (e.g. a `Union`): rank
-        # it behind every rule whose type the chain does reach.
+        # `target` is a `UnionAll` (parametric type) that contains `t` but is not in its
+        # supertype chain: rank it behind every rule whose type the chain reaches.
         (t === Any) && return typemax(Int)
         t = supertype(t)
         dist += 1

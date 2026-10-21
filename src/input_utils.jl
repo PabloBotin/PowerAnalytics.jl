@@ -151,9 +151,8 @@ _first_given(name::Symbol, ::Any, other_name::Symbol, ::Any) = throw(
 """
 Resolve the time window key words of [`compute`](@ref) into the `start_time` (a
 `DateTime`) and `len` (a number of time steps) that `Metric` evaluation functions receive.
-`initial_time` and `horizon` are the documented spellings; `start_time` and `len` are the
-already-resolved form, accepted so that nested `compute` calls inside evaluation functions
-can forward their key words unchanged. Throws an `ArgumentError` if a window given by
+Accepts either `initial_time` or `start_time`, and either `horizon` or `len`, but not both
+of a pair. Throws an `ArgumentError` if a window given by
 `initial_time` or `horizon` does not lie within the realized timestamps of `res`.
 """
 function resolve_time_window(
@@ -355,7 +354,7 @@ function get_reserve_services(results::IS.Results)
             "The results have no attached System; load them with `populate_system = true`",
         ),
     )
-    stored = Set(get_service_variable_keys(results))
+    stored = Set(PSI.list_variable_keys(results))
     services = [
         service for service in get_components(PSY.Service, sys) if
         make_key(PSI.ActivePowerReserveVariable, typeof(service), get_name(service)) in

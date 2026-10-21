@@ -283,6 +283,8 @@ component's name.
    series, as a number of time steps or as a period that is a whole multiple of the results
    resolution; `nothing` means up to the end of the results
 
+`start_time` and `len` (a number of time steps), the 1.x spelling, are also accepted.
+
 See also: [`compute`](@ref) unified function documentation
 """
 compute(metric::ComponentTimedMetric, results::IS.Results, comp::Component; kwargs...) =
@@ -304,6 +306,8 @@ available.
    series, as a number of time steps or as a period that is a whole multiple of the results
    resolution; `nothing` means up to the end of the results
 
+`start_time` and `len` (a number of time steps), the 1.x spelling, are also accepted.
+
 See also: [`compute`](@ref) unified function documentation
 """
 compute(metric::CustomTimedMetric, results::IS.Results,
@@ -324,6 +328,8 @@ a `DataFrame` with a `DateTime` column and a data column.
  - `horizon::Union{Nothing, Int, Dates.Period} = nothing`: the length of the resulting time
    series, as a number of time steps or as a period that is a whole multiple of the results
    resolution; `nothing` means up to the end of the results
+
+`start_time` and `len` (a number of time steps), the 1.x spelling, are also accepted.
 
 See also: [`compute`](@ref) unified function documentation
 """
@@ -424,6 +430,8 @@ marked as not available.
  - `horizon::Union{Nothing, Int, Dates.Period} = nothing`: the length of the resulting time
    series, as a number of time steps or as a period that is a whole multiple of the results
    resolution; `nothing` means up to the end of the results
+
+`start_time` and `len` (a number of time steps), the 1.x spelling, are also accepted.
 
 See also: [`compute`](@ref) unified function documentation
 """
