@@ -52,6 +52,54 @@ end
         horizon = 3, len = 3)
 end
 
+@testset "time windows outside the results" begin
+    full_times = get_time_vec(compute(calc_active_power, results_uc, window_thermal))
+    t0, t_end = first(full_times), last(full_times)
+    step = full_times[2] - t0
+    selector = make_selector(ThermalStandard; groupby = :all)
+    cases = [
+        (calc_active_power, (results_uc, window_thermal)),
+        (calc_active_power, (results_uc, selector)),
+        (calc_system_load_forecast, (results_uc,)),
+    ]
+    for (metric, args) in cases
+        for initial_time in (t0 - step, t_end + step, t0 + Minute(30))
+            err = try
+                compute(metric, args...; initial_time = initial_time)
+            catch e
+                e
+            end
+            @test err isa ArgumentError
+            @test occursin("initial_time $initial_time is not one of", err.msg)
+            @test occursin("($t0 to $t_end)", err.msg)
+        end
+        err = try
+            compute(metric, args...; initial_time = t_end - step, horizon = 3)
+        catch e
+            e
+        end
+        @test err isa ArgumentError
+        @test occursin("a horizon of 3 steps from $(t_end - step)", err.msg)
+        @test occursin("past the end of the results ($t_end)", err.msg)
+        @test_throws ArgumentError compute(metric, args...; horizon = 0)
+        @test_throws ArgumentError compute(metric, args...; horizon = Hour(0))
+        @test_throws ArgumentError compute(
+            metric,
+            args...;
+            horizon = length(full_times) + 1,
+        )
+    end
+    # The last step and the full length are valid windows
+    @test size(
+        compute(calc_active_power, results_uc, window_thermal;
+            initial_time = t_end, horizon = 1), 1) == 1
+    @test size(
+        compute(calc_active_power, results_uc, window_thermal;
+            horizon = length(full_times)), 1) == length(full_times)
+    @test_throws ArgumentError get_generation_data(results_uc; initial_time = t_end + step)
+    @test_throws ArgumentError get_load_data(results_uc; horizon = 0)
+end
+
 @testset "get_generation_data accepts a period horizon" begin
     by_steps = get_generation_data(results_uc; horizon = 12)
     by_period = get_generation_data(results_uc; horizon = Hour(12))

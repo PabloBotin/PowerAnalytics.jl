@@ -153,7 +153,8 @@ Resolve the time window key words of [`compute`](@ref) into the `start_time` (a
 `DateTime`) and `len` (a number of time steps) that `Metric` evaluation functions receive.
 `initial_time` and `horizon` are the documented spellings; `start_time` and `len` are the
 already-resolved form, accepted so that nested `compute` calls inside evaluation functions
-can forward their key words unchanged.
+can forward their key words unchanged. Throws an `ArgumentError` if a window given by
+`initial_time` or `horizon` does not lie within the realized timestamps of `res`.
 """
 function resolve_time_window(
     res::IS.Results;
@@ -164,7 +165,53 @@ function resolve_time_window(
 )
     start_time = _first_given(:initial_time, initial_time, :start_time, start_time)
     len = _first_given(:horizon, _horizon_len(res, horizon), :len, len)
+    if !isnothing(initial_time) || !isnothing(horizon)
+        _check_time_window(res, start_time, len)
+    end
     return (start_time = start_time, len = len)
+end
+
+# Throw an `ArgumentError` unless the window of `len` steps from `start_time` lies within the
+# realized timestamps of `res`. `nothing` means the start or the end of the results.
+_check_time_window(::IS.Results, ::Nothing, ::Nothing) = nothing
+
+function _check_time_window(
+    res::IS.Results,
+    start_time::Union{Nothing, DateTime},
+    len::Union{Nothing, Integer},
+)
+    timestamps = PSI.get_realized_timestamps(res)
+    first_time, last_time = first(timestamps), last(timestamps)
+    start_index = _time_index(timestamps, start_time)
+    isnothing(start_index) && throw(
+        ArgumentError(
+            "initial_time $start_time is not one of the results timestamps " *
+            "($first_time to $last_time)",
+        ),
+    )
+    _check_horizon_steps(timestamps, start_index, len)
+    return
+end
+
+_time_index(::AbstractVector{DateTime}, ::Nothing) = 1
+_time_index(timestamps::AbstractVector{DateTime}, start_time::DateTime) =
+    findfirst(==(start_time), timestamps)
+
+_check_horizon_steps(::AbstractVector{DateTime}, ::Int, ::Nothing) = nothing
+
+function _check_horizon_steps(
+    timestamps::AbstractVector{DateTime},
+    start_index::Int,
+    len::Integer,
+)
+    len >= 1 || throw(ArgumentError("horizon must be at least one time step, got $len"))
+    start_index + len - 1 <= length(timestamps) || throw(
+        ArgumentError(
+            "a horizon of $len steps from $(timestamps[start_index]) runs past the end " *
+            "of the results ($(last(timestamps)))",
+        ),
+    )
+    return
 end
 
 # Resolve the time window key words within `kwargs`, passing any other key words through.
