@@ -170,6 +170,22 @@ function resolve_time_window(
     return (start_time = start_time, len = len)
 end
 
+# Check the window only when it was given as `initial_time` or `horizon`, as
+# `resolve_time_window` does; the 1.x `start_time`/`len` spelling is not checked.
+function _check_given_time_window(
+    res::IS.Results,
+    start_time::Union{Nothing, DateTime},
+    len::Union{Nothing, Integer};
+    initial_time = nothing,
+    horizon = nothing,
+    _...,
+)
+    if !isnothing(initial_time) || !isnothing(horizon)
+        _check_time_window(res, start_time, len)
+    end
+    return
+end
+
 # Throw an `ArgumentError` unless the window of `len` steps from `start_time` lies within the
 # realized timestamps of `res`. `nothing` means the start or the end of the results.
 _check_time_window(::IS.Results, ::Nothing, ::Nothing) = nothing

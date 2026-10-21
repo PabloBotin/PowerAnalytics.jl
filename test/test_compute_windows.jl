@@ -90,6 +90,8 @@ end
             horizon = length(full_times)), 1) == length(full_times)
     @test_throws ArgumentError get_generation_data(results_uc; initial_time = t_end + step)
     @test_throws ArgumentError get_load_data(results_uc; horizon = 0)
+    # The 1.x `start_time`/`len` spelling is not validated
+    @test isempty(get_generation_data(results_uc; start_time = t_end + step).time)
 end
 
 @testset "get_generation_data accepts a period horizon" begin

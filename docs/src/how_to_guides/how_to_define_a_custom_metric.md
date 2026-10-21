@@ -65,16 +65,16 @@ const calc_active_power_gw = ComponentTimedMetric(;
 )
 ```
 
-`eval_fn` receives `(results, component; start_time, len, …)`, where [`compute`](@ref)
-has resolved its `initial_time` and `horizon` key words into a start `DateTime` and a number
-of time steps, and must return a timed
-`DataFrame` (with a `DateTime` column). Optional fields include `component_agg_fn`,
+`eval_fn` receives `(results, component; start_time, len, …)` and must return a timed
+`DataFrame` (with a `DateTime` column); [`compute`](@ref) passes its `initial_time`/`horizon`
+resolved into `start_time` and a step count `len`. Optional fields include `component_agg_fn`,
 `time_agg_fn`, and `eval_zero` for empty groups. For selector-level evaluation without
 drilling to each [`PowerSystems.Component`](@extref), use [`CustomTimedMetric`](@ref). For
 system-wide quantities, use [`SystemTimedMetric`](@ref).
 
 If you only wrap a PowerSimulations results entry type, use
-[`make_component_metric_from_entry`](@ref) (or [`make_system_metric_from_entry`](@ref) for
+[`PowerAnalytics.make_component_metric_from_entry`](@ref) (or
+[`PowerAnalytics.make_system_metric_from_entry`](@ref) for
 system-wide entries), which is how many built-ins in [`PowerAnalytics.Metrics`](@ref) are
 defined.
 

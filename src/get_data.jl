@@ -452,7 +452,7 @@ function get_generation_data(
 ) where {R <: IS.Results}
     initial_time = get(kwargs, :initial_time, get(kwargs, :start_time, nothing))
     len = _horizon_len(results, get(kwargs, :horizon, get(kwargs, :len, nothing)))
-    _check_time_window(results, initial_time, len)
+    _check_given_time_window(results, initial_time, len; kwargs...)
     variable_keys = get(kwargs, :variable_keys, PSI.list_variable_keys(results))
     parameter_keys = get(kwargs, :parameter_keys, PSI.list_parameter_keys(results))
     aux_variable_keys = get(kwargs, :aux_variable_keys, PSI.list_aux_variable_keys(results))
@@ -562,7 +562,7 @@ function get_load_data(
 ) where {R <: IS.Results}
     initial_time = get(kwargs, :initial_time, get(kwargs, :start_time, nothing))
     len = _horizon_len(results, get(kwargs, :horizon, get(kwargs, :len, nothing)))
-    _check_time_window(results, initial_time, len)
+    _check_given_time_window(results, initial_time, len; kwargs...)
     variable_keys = get(kwargs, :variable_keys, PSI.list_variable_keys(results))
     parameter_keys = get(kwargs, :parameter_keys, PSI.list_parameter_keys(results))
     aux_variable_keys = get(kwargs, :aux_variable_keys, PSI.list_aux_variable_keys(results))
@@ -737,7 +737,7 @@ function get_service_data(
 ) where {R <: IS.Results}
     initial_time = get(kwargs, :initial_time, get(kwargs, :start_time, nothing))
     len = _horizon_len(results, get(kwargs, :horizon, get(kwargs, :len, nothing)))
-    _check_time_window(results, initial_time, len)
+    _check_given_time_window(results, initial_time, len; kwargs...)
     variable_keys = get(kwargs, :variable_keys, PSI.list_variable_keys(results))
     #parameter_keys = get(kwargs, :parameter_keys, PSI.list_parameter_keys(results))
 
@@ -778,7 +778,7 @@ function get_branch_data(
 ) where {R <: IS.Results}
     initial_time = get(kwargs, :initial_time, get(kwargs, :start_time, nothing))
     len = _horizon_len(results, get(kwargs, :horizon, get(kwargs, :len, nothing)))
-    _check_time_window(results, initial_time, len)
+    _check_given_time_window(results, initial_time, len; kwargs...)
     variable_keys = get(kwargs, :variable_keys, PSI.list_variable_keys(results))
     aux_variable_keys = get(kwargs, :aux_variable_keys, PSI.list_aux_variable_keys(results))
 

@@ -64,8 +64,7 @@ function _rule_matches(rule::FuelCategoryRule, comp::Component)
            _attribute_matches(PSY.get_fuel, rule.fuel, comp)
 end
 
-# Number of `supertype` steps from `t` up to `target`. The mapping's `gentype`s are types
-# read from a YAML file at runtime, so the comparison has to be made on type values.
+# Number of `supertype` steps from `t` up to `target`.
 function _type_distance(@nospecialize(t::Type), @nospecialize(target::Type))
     dist = 0
     while t !== target
@@ -90,9 +89,7 @@ function _rule_rank(rule::FuelCategoryRule, comp::Component)
 end
 
 # Whether `rule` is the most specific of `rules` matching `comp`, so that each component
-# belongs to exactly one category even when the fallback rules of several categories match
-# it (e.g. a natural gas combined cycle matches both a prime mover rule and a fuel-only
-# rule).
+# belongs to exactly one category.
 function _is_best_rule(rule::FuelCategoryRule, rules, comp::Component)
     _rule_matches(rule, comp) || return false
     rank = _rule_rank(rule, comp)

@@ -168,7 +168,8 @@ function test_metric(::Val{:calc_power_output})
     @test computed isa ResultType
     # `PowerOutput` is the total output, so it is never below the output above minimum
     # that a compact formulation optimizes over, and above it whenever a unit is on
-    above_min = make_component_metric_from_entry("AboveMin", PSI.PowerAboveMinimumVariable)
+    above_min =
+        PA.make_component_metric_from_entry("AboveMin", PSI.PowerAboveMinimumVariable)
     above_min_vals = get_data_vec(above_min(selector, results_compact))
     @test all(get_data_vec(computed) .>= above_min_vals .- 1e-6)
     @test sum(get_data_vec(computed)) > sum(above_min_vals)
