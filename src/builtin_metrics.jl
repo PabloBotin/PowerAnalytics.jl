@@ -106,6 +106,7 @@ import
     ..unweighted_sum,
     ..mean,
     ..read_component_result,
+    ..read_service_component_result,
     ..rebuild_selector,
     ..DataFrame,
     ..DATETIME_COL,
@@ -138,7 +139,8 @@ export calc_active_power,
     calc_power_output,
     calc_sum_objective_value,
     calc_sum_solve_time,
-    calc_sum_bytes_alloc
+    calc_sum_bytes_alloc,
+    make_calc_reserve_provision
 
 # NOTE ActivePowerVariable is in units of megawatts per simulation time period, so it's
 # actually energy and it makes sense to sum it up.
@@ -503,6 +505,29 @@ make_calc_is_slack_up(threshold::Real) = SystemTimedMetric(;
 const DEFAULT_SLACK_UP_THRESHOLD = 1e-4
 "Calculate whether the given time period has system balance slack up of magnitude greater than $DEFAULT_SLACK_UP_THRESHOLD"
 const calc_is_slack_up = make_calc_is_slack_up(DEFAULT_SLACK_UP_THRESHOLD)
+
+"""
+Create a [`ComponentTimedMetric`](@ref) for the reserve that each device provides to
+`service`, from [`PowerSimulations.ActivePowerReserveVariable`](@extref).
+
+Evaluate it on the devices that contribute to `service` (see
+`PowerSystems.get_contributing_devices`). On any other device, or on results without
+reserve results for `service`, it throws a
+[`NoResultError`](@ref PowerAnalytics.NoResultError).
+
+# Examples
+
+```julia
+reg = get_component(VariableReserve{ReserveUp}, get_system(results), "REG1")
+make_calc_reserve_provision(reg)(make_selector(ThermalStandard, "Alta"), results)
+```
+"""
+make_calc_reserve_provision(service::PSY.Service) = ComponentTimedMetric(;
+    name = "ReserveProvision($(IS.component_to_qualified_string(service)))",
+    eval_fn = (res::IS.Results, comp::Component; kwargs...) ->
+        read_service_component_result(
+            res, PSI.ActivePowerReserveVariable, service, comp; kwargs...),
+)
 
 # TODO caching here too
 make_results_metric_from_sum_optimizer_stat(

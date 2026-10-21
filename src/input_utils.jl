@@ -99,6 +99,9 @@ make_key(entry::Type{<:PSI.AuxVariableType}, component::Type{<:Component}) =
     PSI.AuxVarKey(entry, component)
 make_key(entry::Type{<:PSI.InitialConditionType}, component::Type{<:Component}) =
     PSI.ICKey(entry, component)
+# Variables of a `Service` are stored per service, so their key also carries its name
+make_key(entry::Type{<:PSI.VariableType}, service::Type{<:PSY.Service}, name::String) =
+    PSI.VariableKey(entry, service, name)
 
 "Sort a vector of key tuples into variables, parameters, etc. like PSI.load_results! wants"
 make_entry_kwargs(key_tuples::Vector{<:Tuple}) = [
@@ -181,7 +184,7 @@ end
 # SimulationProblemResults has some extra features: the ability to `load_results!` and to specify which columns we want
 function _read_results_with_keys_wrapper(
     res::PSI.SimulationProblemResults{PSI.DecisionModelSimulationResults},
-    key_pair;
+    key_tuple;
     start_time::Union{Nothing, DateTime} = nothing,
     len::Union{Int, Nothing} = nothing,
     cols::Union{Colon, Vector{String}},
@@ -192,11 +195,11 @@ function _read_results_with_keys_wrapper(
     PSI.load_results!(
         res,
         length(PSI.get_timestamps(res));
-        make_entry_kwargs([key_pair])...,
+        make_entry_kwargs([key_tuple])...,
     )
     return PSI.read_results_with_keys(
         res,
-        [make_key(key_pair...)];
+        [make_key(key_tuple...)];
         start_time = start_time,
         len = len,
         cols = cols,
@@ -207,14 +210,14 @@ end
 # Otherwise here is the fallback
 _read_results_with_keys_wrapper(
     res::IS.Results,
-    key_pair;
+    key_tuple;
     start_time::Union{Nothing, DateTime} = nothing,
     len::Union{Int, Nothing} = nothing,
     cols::Union{Colon, Vector{String}},
 ) =
     PSI.read_results_with_keys(
         res,
-        [make_key(key_pair...)];
+        [make_key(key_tuple...)];
         start_time = start_time,
         len = len,
         table_format = IS.TableFormat.WIDE,
@@ -236,37 +239,82 @@ function _check_key_stored(res::IS.Results, key::PSI.OptimizationContainerKey)
     throw(NoResultError("$(PSI.encode_key_as_string(key)) is not in the results"))
 end
 
-"Given an EntryType and a Component, fetch a single column of results"
-function read_component_result(res::IS.Results, entry::Type{<:EntryType}, comp::Component;
+_no_column_error(name::String, key::PSI.OptimizationContainerKey) =
+    NoResultError("$name not in the results for $(PSI.encode_key_as_string(key))")
+
+# Fetch the column of `comp` from the results stored under `key_tuple`, throwing a
+# `NoResultError` if the key or the column is missing
+function _read_component_column(res::IS.Results, key_tuple::Tuple, comp::Component;
     start_time::Union{Nothing, DateTime} = nothing,
     len::Union{Int, Nothing} = nothing,
 )
-    key_pair = (entry, typeof(comp))
-    _check_key_stored(res, make_key(key_pair...))
+    key = make_key(key_tuple...)
+    _check_key_stored(res, key)
+    name = get_name(comp)
     res = try
         only(
             values(
                 _read_results_with_keys_wrapper(
                     res,
-                    key_pair;
+                    key_tuple;
                     start_time = start_time,
                     len = len,
-                    cols = [get_name(comp)],
+                    cols = [name],
                 ),
             ),
         )
     catch e
-        if e isa KeyError && e.key == get_name(comp)
-            throw(
-                NoResultError(
-                    "$(get_name(comp)) not in the results for $(PSI.encode_key_as_string(make_key(key_pair...)))",
-                ),
-            )
-        else
-            rethrow(e)
-        end
+        (e isa KeyError && e.key == name) && throw(_no_column_error(name, key))
+        rethrow(e)
     end
-    return res[!, [DATETIME_COL, get_name(comp)]]
+    # Results types that cannot select columns return the whole table
+    name in names(res) || throw(_no_column_error(name, key))
+    return res[!, [DATETIME_COL, name]]
+end
+
+"Given an EntryType and a Component, fetch a single column of results"
+read_component_result(res::IS.Results, entry::Type{<:EntryType}, comp::Component;
+    kwargs...) = _read_component_column(res, (entry, typeof(comp)), comp; kwargs...)
+
+"""
+Given a variable type stored per `Service` (e.g.
+`PowerSimulations.ActivePowerReserveVariable`), fetch the single column of results for the
+contributing device `comp`
+"""
+read_service_component_result(
+    res::IS.Results,
+    entry::Type{<:PSI.VariableType},
+    service::PSY.Service,
+    comp::Component;
+    kwargs...,
+) = _read_component_column(
+    res,
+    (entry, typeof(service), get_name(service)),
+    comp;
+    kwargs...,
+)
+
+"""
+Get the `Service`s of the `System` attached to `results` that have
+[`PowerSimulations.ActivePowerReserveVariable`](@extref) results stored in `results`,
+sorted by name.
+
+See also: [`make_calc_reserve_provision`](@ref PowerAnalytics.Metrics.make_calc_reserve_provision)
+"""
+function get_reserve_services(results::IS.Results)
+    sys = get_system(results)
+    isnothing(sys) && throw(
+        ArgumentError(
+            "The results have no attached System; load them with `populate_system = true`",
+        ),
+    )
+    stored = Set(get_service_variable_keys(results))
+    services = [
+        service for service in get_components(PSY.Service, sys) if
+        make_key(PSI.ActivePowerReserveVariable, typeof(service), get_name(service)) in
+        stored
+    ]
+    return sort!(services; by = get_name)
 end
 
 # TODO caching here too

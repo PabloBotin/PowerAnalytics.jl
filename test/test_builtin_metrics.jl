@@ -186,6 +186,58 @@ all_metric_names = filter(x -> getproperty(PowerAnalytics.Metrics, x) isa Metric
     test_metric(Val(metric_name))
 end
 
+@testset "Test read_component_result without the component's column" begin
+    # `OptimizationProblemResults` cannot select columns, so the missing column is caught
+    # after reading the stored key
+    comp = ThermalStandard(nothing)
+    @test PSI.VariableKey(PSI.PowerAboveMinimumVariable, ThermalStandard) in
+          PSI.list_variable_keys(results_compact)
+    @test_throws NoResultError PA.read_component_result(
+        results_compact, PSI.PowerAboveMinimumVariable, comp)
+end
+
+@testset "Test make_calc_reserve_provision" begin
+    sys = get_system(results_uc)
+    reg = get_component(VariableReserve{ReserveUp}, sys, "REG1")
+    calc_reg = make_calc_reserve_provision(reg)
+    @test get_name(calc_reg) == "ReserveProvision(VariableReserve{ReserveUp}__REG1)"
+    # Up and down products may share a name; their metrics must not
+    @test get_name(make_calc_reserve_provision(VariableReserve{ReserveUp}(nothing))) !=
+          get_name(make_calc_reserve_provision(VariableReserve{ReserveDown}(nothing)))
+
+    # Reads the per-service key, whose columns are the contributing devices
+    key =
+        PSI.VariableKey(PSI.ActivePowerReserveVariable, VariableReserve{ReserveUp}, "REG1")
+    raw = only(
+        values(
+            PSI.read_results_with_keys(results_uc, [key];
+                table_format = IS.TableFormat.WIDE),
+        ),
+    )
+    contributing = get_contributing_devices(sys, reg)
+    @test Set(get_data_cols(raw)) == Set(get_name.(contributing))
+    for comp in contributing
+        @test get_data_vec(calc_reg(make_selector(comp), results_uc)) ==
+              raw[!, get_name(comp)]
+    end
+    thermal = make_selector(in(Set(contributing)), ThermalStandard; groupby = :all)
+    thermal_names = get_name.(get_components(in(Set(contributing)), ThermalStandard, sys))
+    @test get_data_vec(calc_reg(thermal, results_uc)) ≈
+          vec(sum(Matrix(raw[!, thermal_names]); dims = 2))
+
+    # Respects the time window like the other metrics
+    t0 = raw[3, DATETIME_COL]
+    windowed = calc_reg(thermal, results_uc; initial_time = t0, horizon = 4)
+    @test get_time_vec(windowed) == raw[3:6, DATETIME_COL]
+
+    # A device that does not contribute, and results without the reserve, have no result
+    non_contributing = first(
+        c for c in get_components(ThermalStandard, sys) if !(c in Set(contributing))
+    )
+    @test_throws NoResultError calc_reg(make_selector(non_contributing), results_uc)
+    @test_throws NoResultError calc_reg(make_selector(first(contributing)), results_ed)
+end
+
 # Regression test for https://github.com/Sienna-Platform/PowerAnalytics.jl/issues/54.
 # Computing a `ComponentTimedMetric` over a type-based `ComponentSelector` (the original
 # reproducer was `calc_active_power(make_selector(ThermalStandard), results_uc)`) was

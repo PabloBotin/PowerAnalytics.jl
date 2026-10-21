@@ -23,7 +23,7 @@ export is_col_meta, set_col_meta, set_col_meta!, get_time_df, get_time_vec, get_
 export compute, compute_all, hcat_timed_dfs, aggregate_time, compose_metrics
 export make_component_metric_from_entry, make_system_metric_from_entry
 export NoResultError
-export create_problem_results_dict
+export create_problem_results_dict, get_reserve_services
 export parse_generator_mapping_file, parse_injector_categories, parse_generator_categories
 export mean, weighted_mean, unweighted_sum
 

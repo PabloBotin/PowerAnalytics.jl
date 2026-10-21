@@ -168,3 +168,10 @@ end
         @test all(in(branch_names), mapped)
     end
 end
+
+@testset "Test get_reserve_services" begin
+    reg = get_component(VariableReserve{ReserveUp}, get_system(results_uc), "REG1")
+    @test get_reserve_services(results_uc) == [reg]
+    # The ED problem has no reserve model
+    @test isempty(get_reserve_services(results_ed))
+end
