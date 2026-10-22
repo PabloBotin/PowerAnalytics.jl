@@ -64,7 +64,8 @@ function _rule_matches(rule::FuelCategoryRule, comp::Component)
            _attribute_matches(PSY.get_fuel, rule.fuel, comp)
 end
 
-# Number of `supertype` steps from `t` up to `target`.
+# Number of `supertype` steps from `t` up to `target`. The mapping's `gentype`s are types
+# read from a YAML file at runtime, so the comparison has to be made on type values.
 function _type_distance(@nospecialize(t::Type), @nospecialize(target::Type))
     dist = 0
     while t !== target
@@ -77,9 +78,8 @@ function _type_distance(@nospecialize(t::Type), @nospecialize(target::Type))
     return dist
 end
 
-# Specificity of `rule` for a component it matches, smaller is more specific: the closest
-# component supertype first, then a specific prime mover over any prime mover, then a
-# specific fuel over any fuel.
+# Specificity of `rule` for a matching component, smaller is more specific: supertype
+# distance, then a specific prime mover, then a specific fuel.
 function _rule_rank(rule::FuelCategoryRule, comp::Component)
     return (
         _type_distance(typeof(comp), rule.gen_type),
@@ -147,12 +147,10 @@ end
 Parse a `generator_mapping.yaml` file into a dictionary of `ComponentSelector`s and a
 dictionary of metadata if present.
 
-Each category has one subselector per rule in the file. A component is selected only by
-the most specific rule that matches it across the whole file, so each component belongs to
-at most one category. Specificity follows the closest component supertype first, then a
-rule naming a prime mover over one that does not, then a rule naming a fuel over one that
-does not: for example, with the default mapping a natural gas combined cycle unit is in
-`NG-CC` only, not also in the fuel-only `NG-Steam` fallback.
+Each component is selected only by the most specific matching rule in the file, so it
+belongs to at most one category. Specificity: closest component supertype first, then a
+rule naming a prime mover, then a rule naming a fuel (e.g. a natural gas combined cycle
+unit is in `NG-CC`, not the fuel-only `NG-Steam`).
 
 # Arguments
 

@@ -8,7 +8,7 @@ entry `key` (a variable, expression, parameter or auxiliary variable type, e.g.
 # Examples
 
 ```julia
-calc_reactive_power = make_component_metric_from_entry(
+calc_reactive_power = PowerAnalytics.make_component_metric_from_entry(
     "ReactivePower", PowerSimulations.ReactivePowerVariable)
 calc_reactive_power(make_selector(ThermalStandard), results)
 ```
@@ -208,9 +208,8 @@ const calc_active_power_forecast = make_component_metric_from_entry(
 """
 Forecast active power input of the specified `ComponentSelector` from
 `PowerSimulations.ActivePowerInTimeSeriesParameter`, e.g. a `Source` whose input is fixed
-by a time series. The values are the time series times the `Source`'s
-`active_power_limits.min` under `PowerSimulations.FixedOutput` and times
-`active_power_limits.max` under other formulations.
+by a time series. Values are scaled by `active_power_limits.min` under
+`PowerSimulations.FixedOutput`, else by `active_power_limits.max`.
 """
 const calc_active_power_in_forecast = make_component_metric_from_entry(
     "ActivePowerInForecast",

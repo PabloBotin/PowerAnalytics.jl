@@ -152,8 +152,8 @@ _first_given(name::Symbol, ::Any, other_name::Symbol, ::Any) = throw(
 Resolve the time window key words of [`compute`](@ref) into the `start_time` (a
 `DateTime`) and `len` (a number of time steps) that `Metric` evaluation functions receive.
 Accepts either `initial_time` or `start_time`, and either `horizon` or `len`, but not both
-of a pair. Throws an `ArgumentError` if a window given by
-`initial_time` or `horizon` does not lie within the realized timestamps of `res`.
+of a pair. Throws an `ArgumentError` if a window given by `initial_time` or `horizon` does
+not lie within the realized timestamps of `res`.
 """
 function resolve_time_window(
     res::IS.Results;
@@ -164,14 +164,12 @@ function resolve_time_window(
 )
     start_time = _first_given(:initial_time, initial_time, :start_time, start_time)
     len = _first_given(:horizon, _horizon_len(res, horizon), :len, len)
-    if !isnothing(initial_time) || !isnothing(horizon)
-        _check_time_window(res, start_time, len)
-    end
+    _check_given_time_window(res, start_time, len; initial_time, horizon)
     return (start_time = start_time, len = len)
 end
 
-# Check the window only when it was given as `initial_time` or `horizon`, as
-# `resolve_time_window` does; the 1.x `start_time`/`len` spelling is not checked.
+# Check the window only when it was given as `initial_time` or `horizon`; the
+# `start_time`/`len` spelling is not checked.
 function _check_given_time_window(
     res::IS.Results,
     start_time::Union{Nothing, DateTime},
@@ -229,9 +227,8 @@ function _check_horizon_steps(
     return
 end
 
-# Resolve the time window key words within `kwargs`, passing any other key words through.
-# No window key words are added when none were given, so evaluation functions that take
-# none keep working.
+# Resolve the time window key words within `kwargs`, passing other key words through; adds
+# none when none were given.
 function _resolve_window_kwargs(res::IS.Results, kwargs)
     window_keys = (:initial_time, :horizon, :start_time, :len)
     other = Base.structdiff(values(kwargs), NamedTuple{window_keys})
@@ -251,9 +248,8 @@ function _read_results_with_keys_wrapper(
     len::Union{Int, Nothing} = nothing,
     cols::Union{Colon, Vector{String}},
 )
-    # Cache every stored window of the key. `load_results!` counts in windows starting
-    # from a window-initial time while `start_time`/`len` are in time steps, so the
-    # requested time window is applied by `read_results_with_keys` instead.
+    # Cache every stored window: `load_results!` counts windows, not time steps, so the
+    # requested window is applied by `read_results_with_keys`.
     PSI.load_results!(
         res,
         length(PSI.get_timestamps(res));
@@ -293,8 +289,7 @@ _stored_keys(res::IS.Results, ::PSI.ParameterKey) = PSI.list_parameter_keys(res)
 _stored_keys(res::IS.Results, ::PSI.AuxVarKey) = PSI.list_aux_variable_keys(res)
 _stored_keys(::IS.Results, ::PSI.OptimizationContainerKey) = nothing
 
-# Throw a `NoResultError` if `key` was never stored in `res`, so that a missing key and a
-# missing component surface as the same error
+# Throw a `NoResultError` if `key` was never stored in `res`
 function _check_key_stored(res::IS.Results, key::PSI.OptimizationContainerKey)
     stored = _stored_keys(res, key)
     (isnothing(stored) || key in stored) && return

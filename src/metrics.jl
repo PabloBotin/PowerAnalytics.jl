@@ -59,9 +59,8 @@ A [`ComponentSelectorTimedMetric`](@ref) implemented by evaluating a function on
   - `name::String`: the name of the `Metric`
   - `eval_fn`: a function with signature `(::IS.Results, ::Component;
     start_time::Union{Nothing, DateTime}, len::Union{Int, Nothing})` that returns a
-    `DataFrame` representing the results for that `Component`; `compute` passes its
-    `initial_time`/`horizon` key words to `eval_fn` resolved into `start_time` and a number
-    of time steps `len`
+    `DataFrame` representing the results for that `Component`; `compute` resolves its
+    `initial_time`/`horizon` into `start_time` and `len` (time steps)
   - `component_agg_fn`: optional, a function to aggregate results between
     [`Component`](@extref PowerSystems.Component)s/`ComponentSelector`s, defaults to
     [`sum`](@extref Base.sum)
@@ -100,9 +99,8 @@ A [`ComponentSelectorTimedMetric`](@ref) implemented without drilling down to th
   - `name::String`: the name of the `Metric`
   - `eval_fn`: a function with signature `(::IS.Results, ::Union{ComponentSelector,
     Component}; start_time::Union{Nothing, DateTime}, len::Union{Int, Nothing})` that
-    returns a `DataFrame` representing the results for that `Component`; `compute` passes
-    its `initial_time`/`horizon` key words to `eval_fn` resolved into `start_time` and a
-    number of time steps `len`
+    returns a `DataFrame` representing the results for that `Component`; `compute` resolves
+    its `initial_time`/`horizon` into `start_time` and `len` (time steps)
   - `time_agg_fn`: optional, a function to aggregate results across time, defaults to
     [`sum`](@extref Base.sum)
   - `time_meta_agg_fn`: optional, a function to aggregate metadata across time, defaults to
@@ -127,8 +125,8 @@ PowerSystems.System) embedded in a set of results.
  - `name::String`: the name of the `Metric`
  - `eval_fn`: a function with signature `(::IS.Results; start_time::Union{Nothing,
    DateTime}, len::Union{Int, Nothing})` that returns a `DataFrame` representing the
-   results; `compute` passes its `initial_time`/`horizon` key words to `eval_fn` resolved
-   into `start_time` and a number of time steps `len`
+   results; `compute` resolves its `initial_time`/`horizon` into `start_time` and `len`
+   (time steps)
  - `time_agg_fn`: optional, a function to aggregate results across time, defaults to
    [`sum`](@extref Base.sum)
  - `time_meta_agg_fn`: optional, a function to aggregate metadata across time, defaults to
@@ -283,7 +281,7 @@ component's name.
    series, as a number of time steps or as a period that is a whole multiple of the results
    resolution; `nothing` means up to the end of the results
 
-`start_time` and `len` (a number of time steps), the 1.x spelling, are also accepted.
+`start_time` and `len` (a number of time steps) are also accepted.
 
 See also: [`compute`](@ref) unified function documentation
 """
@@ -306,7 +304,7 @@ available.
    series, as a number of time steps or as a period that is a whole multiple of the results
    resolution; `nothing` means up to the end of the results
 
-`start_time` and `len` (a number of time steps), the 1.x spelling, are also accepted.
+`start_time` and `len` (a number of time steps) are also accepted.
 
 See also: [`compute`](@ref) unified function documentation
 """
@@ -329,7 +327,7 @@ a `DataFrame` with a `DateTime` column and a data column.
    series, as a number of time steps or as a period that is a whole multiple of the results
    resolution; `nothing` means up to the end of the results
 
-`start_time` and `len` (a number of time steps), the 1.x spelling, are also accepted.
+`start_time` and `len` (a number of time steps) are also accepted.
 
 See also: [`compute`](@ref) unified function documentation
 """
@@ -431,7 +429,7 @@ marked as not available.
    series, as a number of time steps or as a period that is a whole multiple of the results
    resolution; `nothing` means up to the end of the results
 
-`start_time` and `len` (a number of time steps), the 1.x spelling, are also accepted.
+`start_time` and `len` (a number of time steps) are also accepted.
 
 See also: [`compute`](@ref) unified function documentation
 """
